@@ -16,7 +16,7 @@ static std::mt19937 gen(rd());
 template <typename Get>
 static void forward_line(Get&& get, bool& changed) {
     std::int8_t write = 0;
-
+    
     for (auto read : views::iota(std::int8_t(0), board_size)) {
         auto value = get(read);
         if (not value) continue;
@@ -254,7 +254,7 @@ void undo() {
 
     best_score = last.best_score;
     highest_tile = last.highest_tile;
-    memcpy(game_matrix, last.game_matrix, sizeof game_matrix);
+    std::memcpy(game_matrix, last.game_matrix, sizeof game_matrix);
 
     --total_moves;
 }

@@ -52,6 +52,7 @@ static auto save_game() {
 }
 
 int main() {
+	enable_utf8();
 	std::string_view error;
 
 	while (true) {

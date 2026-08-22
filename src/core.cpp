@@ -2,12 +2,20 @@ module;
 
 #ifdef _WIN32
 #include <conio.h>
+#include <windows.h>
 #else
 #include <termios.h>
 #include <unistd.h>
 #endif
 
 module core;
+
+void enable_utf8() {
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+}
 
 char get_key_press_down() {
 #ifdef _WIN32

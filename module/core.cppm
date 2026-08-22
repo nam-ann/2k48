@@ -34,6 +34,7 @@ export {
 		std::uint16_t highest_tile = 0;
 	};
 	
+	void enable_utf8();
 	char get_key_press_down();
 
 	std::int8_t board_size = 0;
@@ -46,7 +47,7 @@ export {
 	std::uint64_t best_score = 0;
 	std::uint16_t highest_tile = 0;
 	std::uint16_t* currently_spawned = nullptr;
-
+	
 	std::chrono::seconds time_taken;
 
 	constexpr auto game_logo = R"(

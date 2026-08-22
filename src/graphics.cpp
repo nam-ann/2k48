@@ -80,7 +80,7 @@ std::string render_statis() {
 	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Highest tile:", highest_tile, vertical_edge);
 	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Total moves:", total_moves, vertical_edge);
 	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Time taken:", time_taken, vertical_edge);
-
+	
 	return result + rst_bot;
 }
 
