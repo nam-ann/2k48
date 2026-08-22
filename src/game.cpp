@@ -275,7 +275,7 @@ SaveState load(fs::path const& path) {
     file.read((char*)game_matrix, sizeof game_matrix);
 
     if (state == '\1') return SaveState::LOST;
-    else return SaveState::WON;
+    else if (state == '\2') return SaveState::WON;
 
     return SaveState::NORMAL;
 }
