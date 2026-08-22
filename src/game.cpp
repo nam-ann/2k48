@@ -5,6 +5,8 @@ import core;
 namespace fs = std::filesystem;
 namespace views = std::ranges::views;
 
+static std::vector<GameSnapshot> game_history;
+
 static std::chrono::steady_clock::time_point start_time;
 static std::int8_t board_size_1;
 
@@ -105,10 +107,6 @@ static char idist_y[sizeof(randint)];
 static char idist_spawn[sizeof(randbool)];
 
 static void create_dist() {
-    std::destroy_at((randint*)idist_x);
-    std::destroy_at((randint*)idist_y);
-    std::destroy_at((randbool*)idist_spawn);
-
     std::construct_at((randint*)idist_x, 0, board_size_1);
     std::construct_at((randint*)idist_y, 0, board_size_1);
     std::construct_at((randbool*)idist_spawn, 0.9);
@@ -143,8 +141,9 @@ void start() {
     auto& dist_y = (randint&)idist_y;
     auto& dist_spawn = (randbool&)idist_spawn;
 
-    game_matrix.assign(board_size, std::vector<std::uint16_t>(board_size));
+    std::memset(game_matrix, 0, sizeof game_matrix);
     game_matrix[dist_x(gen)][dist_y(gen)] = 2;
+    game_history.clear();
 
     colorize();
     start_time = std::chrono::steady_clock::now();
@@ -157,31 +156,36 @@ void process() {
 
     bool changed = false;
 
+    GameSnapshot snapshot;
+    snapshot.best_score = best_score;
+    snapshot.highest_tile = highest_tile;
+    std::memcpy(snapshot.game_matrix, game_matrix, sizeof game_matrix);
+
 	switch (current_key) {
     case Key::UP: {
         for (auto col : views::iota(std::int8_t(0), board_size)) {
-            forward_line([&col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
+            forward_line([col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
         }
 
         break;
     }
 	case Key::LEFT: {
-        for (auto& row : game_matrix) {
-            forward_line([&row](std::int8_t i) -> auto& { return row[i]; }, changed);
+        for (auto row : views::iota(std::int8_t(0), board_size)) {
+            forward_line([row](std::int8_t i) -> auto& { return game_matrix[row][i]; }, changed);
         }
 
         break;
 	}
     case Key::DOWN: {
         for (auto col : views::iota(std::int8_t(0), board_size)) {
-            backward_line([&col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
+            backward_line([col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
         }
 
         break;
     }
     case Key::RIGHT: {
-        for (auto& row : game_matrix) {
-            backward_line([&row](std::int8_t i) -> auto& { return row[i]; }, changed);
+        for (auto row : views::iota(std::int8_t(0), board_size)) {
+            backward_line([row](std::int8_t i) -> auto& { return game_matrix[row][i]; }, changed);
         }
 
         break;
@@ -195,19 +199,21 @@ void process() {
 
         for (random(); *currently_spawned; random());
         *currently_spawned = dist_spawn(gen) ? 2 : 4;
+
+        game_history.emplace_back(snapshot);
     }
     else {
         auto original_best_score = best_score;
 
         for (auto idx : views::iota(std::int8_t(0), board_size)) {
             std::uint16_t col = 0;
-            forward_line([&col, &idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
-            backward_line([&col, &idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
+            forward_line([&col, idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
+            backward_line([&col, idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
         }
-        for (auto const& inner : game_matrix) {
+        for (auto idx : views::iota(std::int8_t(0), board_size)) {
             std::uint16_t row = 0;
-            forward_line([&row, &inner](std::int8_t i) -> auto& { return row = inner[i]; }, changed);
-            backward_line([&row, &inner](std::int8_t i) -> auto& { return row = inner[i]; }, changed);
+            forward_line([&row, idx](std::int8_t i) -> auto& { return row = game_matrix[idx][i]; }, changed);
+            backward_line([&row, idx](std::int8_t i) -> auto& { return row = game_matrix[idx][i]; }, changed);
         }
 
         best_score = original_best_score;
@@ -235,15 +241,28 @@ bool save(fs::path const& path) {
     file.write((const char*)&time_taken, sizeof time_taken);
 
     file.write((const char*)&board_size, sizeof board_size);
-    for (auto const& row : game_matrix) file.write((const char*)row.data(), row.size() * sizeof row[0]);
+    file.write((const char*)game_matrix, sizeof game_matrix);
 
     return true;
 }
 
-bool load(fs::path const& path) {
+void undo() {
+    if (game_history.empty()) return;
+
+    auto last = game_history.back();
+    game_history.pop_back();
+
+    best_score = last.best_score;
+    highest_tile = last.highest_tile;
+    memcpy(game_matrix, last.game_matrix, sizeof game_matrix);
+
+    --total_moves;
+}
+
+SaveState load(fs::path const& path) {
     std::ifstream file(path, std::ios::binary);
 
-    if (not file) return false;
+    if (not file) return SaveState::FAILED;
 
     char state; file.read((char*)&state, 1);
 
@@ -253,15 +272,10 @@ bool load(fs::path const& path) {
     file.read((char*)&time_taken, sizeof time_taken);
 
     file.read((char*)&board_size, sizeof board_size);
-    game_matrix.assign(board_size, std::vector<std::uint16_t>(board_size));
-    for (auto& row : game_matrix) file.read((char*)row.data(), row.size() * sizeof row[0]);
+    file.read((char*)game_matrix, sizeof game_matrix);
 
-    if (state == '\0' or game_state == GameState::VIEW) {
-        create_dist();
-        return true;
-    }
-    else if (state == '\1') game_state = GameState::LOSE;
-    else game_state = GameState::WIN;
+    if (state == '\1') return SaveState::LOST;
+    else return SaveState::WON;
 
-    return false;
+    return SaveState::NORMAL;
 }

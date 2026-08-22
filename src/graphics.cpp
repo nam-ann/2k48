@@ -3,6 +3,22 @@ module graphics;
 import core;
 
 namespace views = std::ranges::views;
+using namespace std::string_view_literals;
+
+static constexpr auto top_left_corner = "╭"sv;
+static constexpr auto bot_left_corner = "╰"sv;
+static constexpr auto top_right_corner = "╮"sv;
+static constexpr auto bot_right_corner = "╯"sv;
+
+static constexpr auto horizontal_edge = "──────"sv;
+static constexpr auto vertical_edge = "│"sv;
+
+static constexpr auto right_t = "├"sv;
+static constexpr auto left_t = "┤"sv;
+static constexpr auto bot_t = "┬"sv;
+static constexpr auto top_t = "┴"sv;
+
+static constexpr auto intersection = "┼"sv;
 
 static std::string_view spaces(std::uint16_t const& i) {
 	auto idx = &i == currently_spawned ? i * 2048 : i;

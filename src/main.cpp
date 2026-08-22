@@ -5,53 +5,54 @@ import graphics;
 
 namespace fs = std::filesystem;
 
+enum class Loading : std::uint8_t {
+	FAILED,
+	NORMAL,
+	WON,
+	LOST,
+
+	BACK,
+	NO_FILE,
+};
+
+enum class Saving : std::uint8_t {
+	FAILED,
+	BACK,
+};
+
+static bool currently_saved = false;
+
+static auto load_game() {
+	std::print("  Enter save location (leave blank to go back): ");
+
+	std::string location;
+	std::getline(std::cin, location);
+
+	if (location.empty()) return Loading::BACK;
+
+	fs::path path(location);
+	if (not fs::exists(path)) return Loading::NO_FILE;
+
+	return Loading(load(path));
+}
+
+static auto save_game() {
+	std::print("  Enter save location (leave blank to go back): ");
+
+	std::string location;
+	std::getline(std::cin, location);
+
+	if (location.empty()) return Saving::BACK;
+
+	fs::path path(location);
+	fs::create_directories(path.parent_path());
+
+	if (not save(path)) return Saving::FAILED;
+	currently_saved = true;
+}
+
 int main() {
 	std::string_view error;
-	bool currently_saved = false;
-
-	auto load_game = [&] {
-		std::print("  Enter save location (leave blank to go back): ");
-
-		std::string location;
-		std::getline(std::cin, location);
-
-		if (location.empty()) {
-			game_state = GameState::MENU;
-			return false;
-		}
-
-		fs::path path(location);
-		if (not fs::exists(path)) {
-			error = "No such file. Please try again.";
-			return false;
-		}
-
-		if (not load(path)) {
-			error = "Load failed, the file might be corrupted. Please try again.";
-			return false;
-		}
-
-		return true;
-	};
-
-	auto save_game = [&] {
-		std::print("  Enter save location (leave blank to go back): ");
-
-		std::string location;
-		std::getline(std::cin, location);
-
-		if (location.empty()) return;
-
-		fs::path path(location);
-		fs::create_directories(path.parent_path());
-
-		if (not save(path)) {
-			error = "Save failed, the file might be corrupted. Please try again.";
-			return;
-		}
-
-		currently_saved = true;
-	};
 
 	while (true) {
 		clear_screen();
@@ -103,30 +104,46 @@ int main() {
 		}
 		case GameState::CONTINUE: {
 			if (not error.empty()) std::println("  \033[31m{}\033[0m\n", error);
-			if (not load_game()) continue;
 
-			game_state = GameState::IN_GAME;
+			switch (load_game()) {
+			case Loading::BACK: game_state = GameState::MENU; break;
+			case Loading::NORMAL: game_state = GameState::IN_GAME; break;
+			case Loading::WON: game_state = GameState::WIN; break;
+			case Loading::LOST: game_state = GameState::LOSE; break;
+
+			case Loading::NO_FILE: error = "No such file. Please try again."; continue;
+			case Loading::FAILED: error = "Load failed, the file might be corrupted. Please try again."; continue;
+			}
+
 			cache();
-
 			break;
 		}
 		case GameState::VIEW: {
 			if (not error.empty()) std::println("  \033[31m{}\033[0m\n", error);
-			if (not load_game()) continue;
 
-			game_state = GameState::IN_VIEW;
+			switch (load_game()) {
+			case Loading::BACK: game_state = GameState::MENU; break;
+
+			case Loading::NORMAL:
+			case Loading::WON:
+			case Loading::LOST: game_state = GameState::IN_VIEW; break;
+
+			case Loading::NO_FILE: error = "No such file. Please try again."; continue;
+			case Loading::FAILED: error = "Load failed, the file might be corrupted. Please try again."; continue;
+			}
+
 			cache();
-
 			break;
 		}
 		case GameState::IN_GAME: {
 			std::println("{}\n\n{}\n\n"
 
-				"  W or K => Up\n"
-				"  A or H => Left\n"
-				"  S or J => Down\n"
-				"  D or L => Right\n"
-				"  Z or P => Save\n"
+				"  W or L => Up\n"
+				"  A or ; => Left\n"
+				"  S or K => Down\n"
+				"  D or J => Right\n"
+				"  Z or N => Save\n"
+				"  Q or U => Undo\n\n"
 				"  R => Reset colors\n"
 				"  M => Return to menu\n\n"
 
@@ -136,25 +153,30 @@ int main() {
 			char input = get_key_press_down();
 			
 			switch (input) {
-			case 'K':
-			case 'k':
+			case 'L':
+			case 'l':
 			case 'W':
 			case 'w': current_key = Key::UP; break;
 
-			case 'H':
-			case 'h':
+			case ':':
+			case ';':
 			case 'A':
 			case 'a': current_key = Key::LEFT; break;
 
-			case 'J':
-			case 'j':
+			case 'K':
+			case 'k':
 			case 'S':
 			case 's': current_key = Key::DOWN; break;
 
-			case 'L':
-			case 'l':
+			case 'J':
+			case 'j':
 			case 'D':
 			case 'd': current_key = Key::RIGHT; break;
+
+			case 'Q':
+			case 'q':
+			case 'U':
+			case 'u': undo(); break;
 
 			case 'M':
 			case 'm': {
@@ -174,19 +196,19 @@ int main() {
 				}
 
 				std::println();
-				save_game();
+				if (save_game() == Saving::FAILED) error = "Save failed, the file might be corrupted. Please try again.";
 
 				game_state = GameState::MENU;
 				continue;
 			}
 
-			case 'r':
-			case 'R': colorize(); break;
+			case 'R':
+			case 'r': colorize(); break;
 
 			case 'Z':
 			case 'z':
-			case 'P':
-			case 'p': save_game(); continue;
+			case 'N':
+			case 'n': if (save_game() == Saving::FAILED) error = "Save failed, the file might be corrupted. Please try again."; continue;
 
 			default: error = "Invalid input. Please try again."; continue;
 			}
@@ -199,7 +221,12 @@ int main() {
 			std::println("{}\n\n"
 				"  \033[96mYOU WIN!\033[0m\n\n"
 				"{}", render(), render_statis());
-			save_game();
+
+			if (not error.empty()) std::println("  \033[31m{}\033[0m\n", error);
+			if (save_game() == Saving::FAILED) {
+				error = "Save failed, the file might be corrupted. Please try again.";
+				continue;
+			}
 
 			game_state = GameState::MENU;
 			break;
@@ -208,7 +235,12 @@ int main() {
 			std::println("{}\n\n"
 				"  \033[91mGAME OVER!\033[0m\n\n"
 				"{}", render(), render_statis());
-			save_game();
+
+			if (not error.empty()) std::println("  \033[31m{}\033[0m\n", error);
+			if (save_game() == Saving::FAILED) {
+				error = "Save failed. Please try again.";
+				continue;
+			}
 
 			game_state = GameState::MENU;
 			break;
