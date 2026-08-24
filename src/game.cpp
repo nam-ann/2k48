@@ -107,6 +107,7 @@ static alignas(randint) std::byte idist_y[sizeof(randint)];
 static alignas(randbool) std::byte idist_spawn[sizeof(randbool)];
 
 static void create_dist() {
+    // No need to destroy here, it's a trivial type
     std::construct_at((randint*)idist_x, 0, board_size_1);
     std::construct_at((randint*)idist_y, 0, board_size_1);
     std::construct_at((randbool*)idist_spawn, 0.9);
