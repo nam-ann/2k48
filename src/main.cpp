@@ -27,7 +27,7 @@ static auto load_game() {
 
 	std::string location;
 	std::getline(std::cin, location);
-
+	
 	if (location.empty()) return Loading::BACK;
 
 	fs::path path(location);
@@ -91,7 +91,7 @@ int main() {
 				game_state = GameState::MENU;
 				continue;
 			}
-			if (choice < 3 or choice > 16) {
+			if (choice < 3 or choice > 9) {
 				error = "Invalid input. Gameboard size should range from 3 to 9";
 				continue;
 			}
