@@ -106,6 +106,11 @@ static alignas(randint) std::byte idist_x[sizeof(randint)];
 static alignas(randint) std::byte idist_y[sizeof(randint)];
 static alignas(randbool) std::byte idist_spawn[sizeof(randbool)];
 
+// Just make sure don't use it before create_dist()
+auto& dist_x = (randint&)idist_x;
+auto& dist_y = (randint&)idist_y;
+auto& dist_spawn = (randbool&)idist_spawn;
+
 static void create_dist() {
     // No need to destroy here, it's a trivial type
     std::construct_at((randint*)idist_x, 0, board_size_1);
@@ -138,10 +143,6 @@ void start() {
     board_size_1 = board_size - 1;
     create_dist();
 
-    auto& dist_x = (randint&)idist_x;
-    auto& dist_y = (randint&)idist_y;
-    auto& dist_spawn = (randbool&)idist_spawn;
-
     std::memset(current_game.game_matrix, 0, sizeof current_game.game_matrix);
     current_game.game_matrix[dist_x(gen)][dist_y(gen)] = 2;
     game_history.clear();
@@ -151,10 +152,6 @@ void start() {
 }
 
 void process() {
-	auto& dist_x = (randint&)idist_x;
-	auto& dist_y = (randint&)idist_y;
-    auto& dist_spawn = (randbool&)idist_spawn;
-
     bool changed = false;
     auto snapshot = current_game;
 
@@ -192,7 +189,7 @@ void process() {
 
     if (changed) {
         ++total_moves;
-        auto random = [&dist_x, &dist_y]() { currently_spawned = &current_game.game_matrix[dist_x(gen)][dist_y(gen)]; };
+        auto random = [] { currently_spawned = &current_game.game_matrix[dist_x(gen)][dist_y(gen)]; };
 
         for (random(); *currently_spawned; random());
         *currently_spawned = dist_spawn(gen) ? 2 : 4;
