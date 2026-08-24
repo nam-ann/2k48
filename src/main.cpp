@@ -17,6 +17,8 @@ enum class Loading : std::uint8_t {
 
 enum class Saving : std::uint8_t {
 	FAILED,
+	NORMAL,
+
 	BACK,
 };
 
@@ -49,6 +51,8 @@ static auto save_game() {
 
 	if (not save(path)) return Saving::FAILED;
 	currently_saved = true;
+
+	Saving::NORMAL;
 }
 
 int main() {

@@ -35,8 +35,8 @@ static void forward_line(Get&& get, bool& changed) {
             value *= 2;
             get(i + 1) = 0;
 
-            best_score += value;
-            if (highest_tile < value) highest_tile = value;
+            current_game.best_score += value;
+            if (current_game.highest_tile < value) current_game.highest_tile = value;
 
             if (value >= 2048) {
                 time_taken = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time);
@@ -78,8 +78,8 @@ static void backward_line(Get&& get, bool& changed) {
             value *= 2;
             get(i - 1) = 0;
 
-            best_score += value;
-            if (highest_tile < value) highest_tile = value;
+            current_game.best_score += value;
+            if (current_game.highest_tile < value) current_game.highest_tile = value;
 
             if (value >= 2048) {
                 time_taken = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time);
@@ -102,9 +102,9 @@ static void backward_line(Get&& get, bool& changed) {
 using randint = std::uniform_int_distribution<int>;
 using randbool = std::bernoulli_distribution;
 
-static char idist_x[sizeof(randint)];
-static char idist_y[sizeof(randint)];
-static char idist_spawn[sizeof(randbool)];
+static alignas(randint) std::byte idist_x[sizeof(randint)];
+static alignas(randint) std::byte idist_y[sizeof(randint)];
+static alignas(randbool) std::byte idist_spawn[sizeof(randbool)];
 
 static void create_dist() {
     std::construct_at((randint*)idist_x, 0, board_size_1);
@@ -141,8 +141,8 @@ void start() {
     auto& dist_y = (randint&)idist_y;
     auto& dist_spawn = (randbool&)idist_spawn;
 
-    std::memset(game_matrix, 0, sizeof game_matrix);
-    game_matrix[dist_x(gen)][dist_y(gen)] = 2;
+    std::memset(current_game.game_matrix, 0, sizeof current_game.game_matrix);
+    current_game.game_matrix[dist_x(gen)][dist_y(gen)] = 2;
     game_history.clear();
 
     colorize();
@@ -155,37 +155,33 @@ void process() {
     auto& dist_spawn = (randbool&)idist_spawn;
 
     bool changed = false;
-
-    GameSnapshot snapshot;
-    snapshot.best_score = best_score;
-    snapshot.highest_tile = highest_tile;
-    std::memcpy(snapshot.game_matrix, game_matrix, sizeof game_matrix);
+    auto snapshot = current_game;
 
 	switch (current_key) {
     case Key::UP: {
         for (auto col : views::iota(std::int8_t(0), board_size)) {
-            forward_line([col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
+            forward_line([col](std::int8_t i) -> auto& { return current_game.game_matrix[i][col]; }, changed);
         }
 
         break;
     }
 	case Key::LEFT: {
         for (auto row : views::iota(std::int8_t(0), board_size)) {
-            forward_line([row](std::int8_t i) -> auto& { return game_matrix[row][i]; }, changed);
+            forward_line([row](std::int8_t i) -> auto& { return current_game.game_matrix[row][i]; }, changed);
         }
 
         break;
 	}
     case Key::DOWN: {
         for (auto col : views::iota(std::int8_t(0), board_size)) {
-            backward_line([col](std::int8_t i) -> auto& { return game_matrix[i][col]; }, changed);
+            backward_line([col](std::int8_t i) -> auto& { return current_game.game_matrix[i][col]; }, changed);
         }
 
         break;
     }
     case Key::RIGHT: {
         for (auto row : views::iota(std::int8_t(0), board_size)) {
-            backward_line([row](std::int8_t i) -> auto& { return game_matrix[row][i]; }, changed);
+            backward_line([row](std::int8_t i) -> auto& { return current_game.game_matrix[row][i]; }, changed);
         }
 
         break;
@@ -195,7 +191,7 @@ void process() {
 
     if (changed) {
         ++total_moves;
-        auto random = [&dist_x, &dist_y]() { currently_spawned = &game_matrix[dist_x(gen)][dist_y(gen)]; };
+        auto random = [&dist_x, &dist_y]() { currently_spawned = &current_game.game_matrix[dist_x(gen)][dist_y(gen)]; };
 
         for (random(); *currently_spawned; random());
         *currently_spawned = dist_spawn(gen) ? 2 : 4;
@@ -203,20 +199,20 @@ void process() {
         game_history.emplace_back(snapshot);
     }
     else {
-        auto original_best_score = best_score;
+        auto original_best_score = current_game.best_score;
 
         for (auto idx : views::iota(std::int8_t(0), board_size)) {
             std::uint16_t col = 0;
-            forward_line([&col, idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
-            backward_line([&col, idx](std::int8_t i) -> auto& { return col = game_matrix[i][idx]; }, changed);
+            forward_line([&col, idx](std::int8_t i) -> auto& { return col = current_game.game_matrix[i][idx]; }, changed);
+            backward_line([&col, idx](std::int8_t i) -> auto& { return col = current_game.game_matrix[i][idx]; }, changed);
         }
         for (auto idx : views::iota(std::int8_t(0), board_size)) {
             std::uint16_t row = 0;
-            forward_line([&row, idx](std::int8_t i) -> auto& { return row = game_matrix[idx][i]; }, changed);
-            backward_line([&row, idx](std::int8_t i) -> auto& { return row = game_matrix[idx][i]; }, changed);
+            forward_line([&row, idx](std::int8_t i) -> auto& { return row = current_game.game_matrix[idx][i]; }, changed);
+            backward_line([&row, idx](std::int8_t i) -> auto& { return row = current_game.game_matrix[idx][i]; }, changed);
         }
 
-        best_score = original_best_score;
+        current_game.best_score = original_best_score;
 
         if (game_state == GameState::WIN) game_state = GameState::IN_GAME;
         if (not changed) {
@@ -228,6 +224,15 @@ void process() {
     current_key = Key::NONE;
 }
 
+void undo() {
+    if (game_history.empty()) return;
+
+    current_game = game_history.back();
+
+    game_history.pop_back();
+    --total_moves;
+}
+
 bool save(fs::path const& path) {
     std::ofstream file(path, std::ios::binary);
 
@@ -235,28 +240,15 @@ bool save(fs::path const& path) {
 
     file.write(game_state == GameState::LOSE ? "\1" : game_state == GameState::WIN ? "\2" : "\0", 1);
 
-    file.write((const char*)&best_score, sizeof best_score);
-    file.write((const char*)&highest_tile, sizeof highest_tile);
+    file.write((const char*)&current_game.best_score, sizeof current_game.best_score);
+    file.write((const char*)&current_game.highest_tile, sizeof current_game.highest_tile);
     file.write((const char*)&total_moves, sizeof total_moves);
     file.write((const char*)&time_taken, sizeof time_taken);
 
     file.write((const char*)&board_size, sizeof board_size);
-    file.write((const char*)game_matrix, sizeof game_matrix);
+    file.write((const char*)current_game.game_matrix, sizeof current_game.game_matrix);
 
     return true;
-}
-
-void undo() {
-    if (game_history.empty()) return;
-
-    auto last = game_history.back();
-    game_history.pop_back();
-
-    best_score = last.best_score;
-    highest_tile = last.highest_tile;
-    std::memcpy(game_matrix, last.game_matrix, sizeof game_matrix);
-
-    --total_moves;
 }
 
 SaveState load(fs::path const& path) {
@@ -266,13 +258,13 @@ SaveState load(fs::path const& path) {
 
     char state; file.read((char*)&state, 1);
 
-    file.read((char*)&best_score, sizeof best_score);
-    file.read((char*)&highest_tile, sizeof highest_tile);
+    file.read((char*)&current_game.best_score, sizeof current_game.best_score);
+    file.read((char*)&current_game.highest_tile, sizeof current_game.highest_tile);
     file.read((char*)&total_moves, sizeof total_moves);
     file.read((char*)&time_taken, sizeof time_taken);
 
     file.read((char*)&board_size, sizeof board_size);
-    file.read((char*)game_matrix, sizeof game_matrix);
+    file.read((char*)current_game.game_matrix, sizeof current_game.game_matrix);
 
     if (state == '\1') return SaveState::LOST;
     else if (state == '\2') return SaveState::WON;

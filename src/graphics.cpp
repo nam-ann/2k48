@@ -38,11 +38,11 @@ std::string render() {
 		std::string repeated;
 
 		for (auto j : views::iota(std::int8_t(0), board_size_1)) {
-			auto& block = game_matrix[i][j];
+			auto& block = current_game.game_matrix[i][j];
 			repeated += std::format("{}{:^6}\033[0m{}", spaces(block), (block ? std::to_string(block) : " "), vertical_edge);
 		}
 
-		auto& block = game_matrix[i][board_size_1];
+		auto& block = current_game.game_matrix[i][board_size_1];
 		result += std::format("{}{}{}{:^6}\033[0m{}\n", vertical_edge, repeated, spaces(block), (block ? std::to_string(block) : " "), vertical_edge);
 	};
 
@@ -63,8 +63,8 @@ static std::string rs_bot;
 std::string render_score() {
 	std::string result = rs_top;
 
-	result += std::format("{} {:<23}{:>5} {}\n", vertical_edge, "BEST SCORE:", best_score, vertical_edge);
-	result += std::format("{} {:<23}{:>5} {}\n", vertical_edge, "HIGHEST TILE:", highest_tile, vertical_edge);
+	result += std::format("{} {:<23}{:>5} {}\n", vertical_edge, "BEST SCORE:", current_game.best_score, vertical_edge);
+	result += std::format("{} {:<23}{:>5} {}\n", vertical_edge, "HIGHEST TILE:", current_game.highest_tile, vertical_edge);
 	result += std::format("{} {:<23}{:>5} {}\n", vertical_edge, "MOVES:", total_moves, vertical_edge);
 
 	return result + rs_bot;
@@ -76,8 +76,8 @@ static std::string rst_bot;
 std::string render_statis() {
 	std::string result = rst_top;
 
-	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Final score:", best_score, vertical_edge);
-	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Highest tile:", highest_tile, vertical_edge);
+	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Final score:", current_game.best_score, vertical_edge);
+	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Highest tile:", current_game.highest_tile, vertical_edge);
 	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Total moves:", total_moves, vertical_edge);
 	result += std::format("{} {:<29}{:>5} {}\n", vertical_edge, "Time taken:", time_taken, vertical_edge);
 	
